@@ -197,6 +197,48 @@ mount_fstype_for() {
     ' /proc/self/mountinfo 2>/dev/null
 }
 
+object_id() {
+    # Usage:
+    #   object_id PATH
+    #
+    # Prints a device:inode identity for PATH.
+    # GNU coreutils and BusyBox generally support stat -c.
+    # BSD-style stat -f is a fallback.
+    path=$1
+
+    [ -e "$path" ] || return 1
+
+    if has_command stat; then
+        id=`stat -c '%d:%i' "$path" 2>/dev/null`
+        if [ -n "$id" ]; then
+            printf '%s\n' "$id"
+            return 0
+        fi
+
+        id=`stat -f '%d:%i' "$path" 2>/dev/null`
+        if [ -n "$id" ]; then
+            printf '%s\n' "$id"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+same_object() {
+    # Usage:
+    #   same_object PATH_A PATH_B
+    #
+    # Returns true when both paths refer to the same filesystem object.
+    a=$1
+    b=$2
+
+    aid=`object_id "$a"` || return 1
+    bid=`object_id "$b"` || return 1
+
+    [ "$aid" = "$bid" ]
+}
+
 path_state() {
     path=$1
 
@@ -376,8 +418,15 @@ plan_one_origin() {
     if is_exact_mountpoint "$origin"; then
         printf '  origin state: mount-point\n'
         printf '  store subtree state: %s\n' "`path_state "$subtree"`"
-        printf '  action: inspect\n'
-        printf '  policy: origin-already-mounted\n'
+
+        if same_object "$origin" "$subtree"; then
+            printf '  action: none\n'
+            printf '  policy: already-grafted\n'
+        else
+            printf '  action: refused\n'
+            printf '  policy: unrelated-mount\n'
+        fi
+
         return 0
     fi
 
