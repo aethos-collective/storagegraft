@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH= cd -P "$(dirname "$0")/../.." && pwd -P)
+[ "$#" -eq 2 ] || { echo 'usage: new-branch TYPE issue-number-description' >&2; exit 2; }
+caller=$(git rev-parse --show-toplevel 2>/dev/null) || { echo 'Run this helper inside its own Git worktree.' >&2; exit 1; }
+caller=$(CDPATH= cd -P "$caller" && pwd -P)
+[ "$caller" = "$root" ] || { echo 'Caller and helper belong to different worktrees; no branch created.' >&2; exit 1; }
+branch=$1/$2
+"$root/tools/workflow/check-ref" topic "$branch" || { echo 'Invalid topic branch; see docs/git-workflow.md' >&2; exit 1; }
+git -C "$root" check-ref-format --branch "$branch" >/dev/null
+[ -z "$(git -C "$root" status --porcelain)" ] || { echo 'Commit or isolate existing work first.' >&2; exit 1; }
+git -C "$root" switch -c "$branch"

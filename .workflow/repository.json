@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "policy_id": "aethos.git-workflow",
+  "policy_revision": "1.0.0",
+  "issue_key": "sg",
+  "supported_maintenance": []
+}

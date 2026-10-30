@@ -1,5 +1,7 @@
 # StorageGraft
 
+For contribution workflow and branch naming, start with [CONTRIBUTING.md](CONTRIBUTING.md).
+
 StorageGraft is a Linux storage-extension reconciler.
 
 It helps systems with constrained local storage use larger mounted stores by relocating selected filesystem subtrees into those stores, then bind-mounting the store-backed subtrees back onto their original addresses.

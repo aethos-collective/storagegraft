@@ -1,0 +1,90 @@
+name: Git policy
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  merge_group:
+    types: [checks_requested]
+# Proposed permission grant; requires explicit rollout review before merge.
+permissions:
+  contents: read
+  statuses: write
+jobs:
+  policy:
+    name: Trusted metadata evaluator
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TARGET_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Mark exact target SHA pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS_STATE: pending
+        run: |
+          python3 - <<'PYCODE'
+          import json, os, re, urllib.request
+          sha = os.environ['TARGET_SHA']
+          repo = os.environ['GITHUB_REPOSITORY']
+          if not re.fullmatch(r'[0-9a-f]{40}', sha):
+              raise SystemExit('Missing or invalid target SHA; no success status posted')
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
+              raise SystemExit('Invalid repository identity')
+          state = os.environ['STATUS_STATE']
+          body = json.dumps({'state': state, 'context': 'git-policy/trusted-head',
+              'description': 'Trusted base validates PR branch metadata',
+              'target_url': os.environ['RUN_URL']}).encode()
+          request = urllib.request.Request(
+              os.environ['GITHUB_API_URL'] + '/repos/' + repo + '/statuses/' + sha,
+              data=body, method='POST', headers={
+                  'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                  'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+                  'Content-Type': 'application/json'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              result = json.load(response)
+          if result.get('state') != state or result.get('context') != 'git-policy/trusted-head':
+              raise SystemExit('Status response did not confirm requested result')
+          print('Posted ' + state + ' to exact target SHA ' + sha)
+          PYCODE
+      - name: Checkout trusted base only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          persist-credentials: false
+      - name: Validate metadata and trusted distribution
+        id: validate
+        run: |
+          python3 tools/workflow/check-event.py
+          python3 tools/workflow/generate.py --check
+      - name: Report result on exact target SHA
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS_STATE: ${{ steps.validate.outcome == 'success' && 'success' || 'failure' }}
+        run: |
+          python3 - <<'PYCODE'
+          import json, os, re, urllib.request
+          sha = os.environ['TARGET_SHA']
+          repo = os.environ['GITHUB_REPOSITORY']
+          if not re.fullmatch(r'[0-9a-f]{40}', sha):
+              raise SystemExit('Missing or invalid target SHA; no success status posted')
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
+              raise SystemExit('Invalid repository identity')
+          state = os.environ['STATUS_STATE']
+          body = json.dumps({'state': state, 'context': 'git-policy/trusted-head',
+              'description': 'Trusted base validates PR branch metadata',
+              'target_url': os.environ['RUN_URL']}).encode()
+          request = urllib.request.Request(
+              os.environ['GITHUB_API_URL'] + '/repos/' + repo + '/statuses/' + sha,
+              data=body, method='POST', headers={
+                  'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                  'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+                  'Content-Type': 'application/json'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              result = json.load(response)
+          if result.get('state') != state or result.get('context') != 'git-policy/trusted-head':
+              raise SystemExit('Status response did not confirm requested result')
+          print('Posted ' + state + ' to exact target SHA ' + sha)
+          PYCODE

@@ -1,0 +1,10 @@
+# Proposed policy steward; verify reviewer availability before activation.
+/.github/ @cparker15
+/.workflow/ @cparker15
+/.githooks/ @cparker15
+/tools/workflow/ @cparker15
+/tests/workflow/ @cparker15
+/AGENTS.md @cparker15
+/CONTRIBUTING.md @cparker15
+/docs/git-workflow.md @cparker15
+/docs/workflow-enforcement.md @cparker15

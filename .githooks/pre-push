@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+root=$(git rev-parse --show-toplevel)
+# Git supplies one line per destination, including deletes and explicit refspecs.
+while read -r local_ref local_oid remote_ref remote_oid extra; do
+    [ -n "$local_ref" ] && [ -n "$local_oid" ] && [ -n "$remote_ref" ] && [ -n "$remote_oid" ] && [ -z "$extra" ] || { echo 'Malformed pre-push input' >&2; exit 1; }
+    "$root/tools/workflow/check-ref" ref "$remote_ref" || {
+        printf 'Rejected destination ref: %s\n' "$remote_ref" >&2
+        exit 1
+    }
+done

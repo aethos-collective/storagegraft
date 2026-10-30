@@ -1,0 +1,32 @@
+#!/bin/sh
+set -eu
+LC_ALL=C
+export LC_ALL
+root=$(CDPATH= cd "$(dirname "$0")/../.." && pwd)
+. "$root/.workflow/grammar.sh"
+[ "$#" -eq 2 ] || { echo 'usage: check-ref topic|branch|target|tag|ref NAME' >&2; exit 2; }
+kind=$1
+name=$2
+# Reject embedded newlines before line-oriented ERE matching.
+case "$name" in ''|*'
+'*) exit 1;; esac
+match() { printf '%s\n' "$name" | grep -E -q "$1"; }
+case "$kind" in
+ ref)
+    case "$name" in
+      refs/heads/*) exec "$0" branch "${name#refs/heads/}";;
+      refs/tags/*) exec "$0" tag "${name#refs/tags/}";;
+      *) exit 1;;
+    esac;;
+ topic) match "$TOPIC_RE";;
+ branch|target)
+    [ "$name" = "$TRUNK" ] && exit 0
+    if [ "$kind" = branch ]; then match "$TOPIC_RE" && exit 0; fi
+    match "$MAINTENANCE_RE" || exit 1
+    for supported in $SUPPORTED_MAINTENANCE; do
+        [ "$name" = "$supported" ] && exit 0
+    done
+    exit 1;;
+ tag) match "$TAG_RE";;
+ *) exit 2;;
+esac
